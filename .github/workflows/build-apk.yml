@@ -19,20 +19,36 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Setup Android Project Files & Wrapper
+    - name: Create Android Project Structure
       run: |
         mkdir -p app/src/main/java/com/temp/alert
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
 
+        # settings.gradle
+        cat << 'EOF' > settings.gradle
+        pluginManagement {
+            repositories {
+                google()
+                mavenCentral()
+                gradlePluginPortal()
+            }
+        }
+        dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        rootProject.name = "Temp Alert"
+        include ':app'
+        EOF
+
         # Root build.gradle
         cat << 'EOF' > build.gradle
-        buildscript {
-            repositories { google(); mavenCentral() }
-            dependencies { classpath 'com.android.tools.build:gradle:8.1.1' }
-        }
-        allprojects {
-            repositories { google(); mavenCentral() }
+        plugins {
+            id 'com.android.application' version '8.1.1' apply false
         }
         EOF
 
@@ -41,9 +57,11 @@ jobs:
         plugins {
             id 'com.android.application'
         }
+
         android {
             namespace 'com.temp.alert'
             compileSdk 34
+
             defaultConfig {
                 applicationId "com.temp.alert"
                 minSdk 21
@@ -51,6 +69,7 @@ jobs:
                 versionCode 1
                 versionName "1.0"
             }
+
             buildTypes {
                 release {
                     minifyEnabled false
@@ -61,22 +80,17 @@ jobs:
                 targetCompatibility JavaVersion.VERSION_17
             }
         }
+
         dependencies {
             implementation 'androidx.appcompat:appcompat:1.6.1'
             implementation 'com.google.android.material:material:1.9.0'
         }
         EOF
 
-        # settings.gradle
-        cat << 'EOF' > settings.gradle
-        include ':app'
-        EOF
-
         # AndroidManifest.xml
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
-        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-            package="com.temp.alert">
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
             <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
             <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -258,14 +272,13 @@ jobs:
         }
         EOF
 
-        # Download Official Gradle 8.1.1 Wrapper Zip & Setup gradlew script directly
+    - name: Setup Gradle Wrapper and Build APK
+      run: |
         curl -sL https://services.gradle.org/distributions/gradle-8.1.1-bin.zip -o gradle.zip
         unzip -q gradle.zip
         ./gradle-8.1.1/bin/gradle wrapper --gradle-version 8.1.1
         chmod +x gradlew
-
-    - name: Build Debug APK
-      run: ./gradlew assembleDebug
+        ./gradlew assembleDebug --stacktrace
 
     - name: Upload APK to Artifacts
       uses: actions/upload-artifact@v4
