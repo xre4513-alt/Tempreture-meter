@@ -26,14 +26,16 @@ jobs:
 
     - name: Create Project Files
       run: |
+        # Create necessary directories
         mkdir -p app/src/main/java/com/temp/alert
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
+        mkdir -p app/src/main/res/drawable
 
         # settings.gradle
         echo "include ':app'" > settings.gradle
 
-        # gradle.properties (NAYA FIX: AndroidX aur Memory ke liye)
+        # gradle.properties (Memory & AndroidX fix)
         cat << 'EOF' > gradle.properties
         android.useAndroidX=true
         android.enableJetifier=true
@@ -77,7 +79,7 @@ jobs:
         }
         EOF
 
-        # AndroidManifest.xml (Theme ko AppTheme kar diya)
+        # AndroidManifest.xml
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -105,21 +107,54 @@ jobs:
         </manifest>
         EOF
 
-        # Strings.xml
+        # colors.xml (New file for stylish colors)
+        cat << 'EOF' > app/src/main/res/values/colors.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <color name="bg_start">#1F1C2C</color>
+            <color name="bg_end">#928DAB</color>
+            <color name="accent">#FF5722</color>
+            <color name="white">#FFFFFF</color>
+            <color name="light_grey">#CCCCCC</color>
+        </resources>
+        EOF
+
+        # styles.xml (NoActionBar for full screen gradient look)
+        cat << 'EOF' > app/src/main/res/values/styles.xml
+        <resources>
+            <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar" />
+        </resources>
+        EOF
+
+        # strings.xml
         cat << 'EOF' > app/src/main/res/values/strings.xml
         <resources>
             <string name="app_name">Temp Alert</string>
         </resources>
         EOF
 
-        # styles.xml (NAYA FIX: Theme define kiya)
-        cat << 'EOF' > app/src/main/res/values/styles.xml
-        <resources>
-            <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar" />
-        </resources>
+        # drawable/bg_gradient.xml (Stylish background)
+        cat << 'EOF' > app/src/main/res/drawable/bg_gradient.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <shape xmlns:android="http://schemas.android.com/apk/res/android">
+            <gradient
+                android:startColor="@color/bg_start"
+                android:endColor="@color/bg_end"
+                android:angle="135"/>
+        </shape>
         EOF
 
-        # Layout XML
+        # drawable/btn_bg.xml (Rounded button background)
+        cat << 'EOF' > app/src/main/res/drawable/btn_bg.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <shape xmlns:android="http://schemas.android.com/apk/res/android"
+            android:shape="rectangle">
+            <solid android:color="@color/accent"/>
+            <corners android:radius="30dp"/>
+        </shape>
+        EOF
+
+        # Layout XML (Updated with styles)
         cat << 'EOF' > app/src/main/res/layout/activity_main.xml
         <?xml version="1.0" encoding="utf-8"?>
         <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -127,26 +162,41 @@ jobs:
             android:layout_height="match_parent"
             android:orientation="vertical"
             android:gravity="center"
-            android:padding="20dp">
+            android:padding="24dp"
+            android:background="@drawable/bg_gradient">
 
             <TextView
                 android:id="@+id/txtTemp"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Checking Temp..."
-                android:textSize="28sp"
-                android:textStyle="bold" />
+                android:textSize="32sp"
+                android:textStyle="bold"
+                android:textColor="@color/white" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Monitors temperature in background"
+                android:textSize="14sp"
+                android:textColor="@color/light_grey"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="50dp"/>
 
             <Button
                 android:id="@+id/btnStart"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:text="Start Service" />
+                android:layout_width="220dp"
+                android:layout_height="60dp"
+                android:text="Start Service"
+                android:textColor="@color/white"
+                android:textSize="18sp"
+                android:background="@drawable/btn_bg"
+                android:elevation="8dp"
+                android:stateListAnimator="@null" />
         </LinearLayout>
         EOF
 
-        # MainActivity.java (API 33 Receiver FIX)
+        # MainActivity.java (API 33 Receiver safe)
         cat << 'EOF' > app/src/main/java/com/temp/alert/MainActivity.java
         package com.temp.alert;
 
@@ -196,7 +246,7 @@ jobs:
         }
         EOF
 
-        # TempMonitorService.java (API 33 Receiver FIX)
+        # TempMonitorService.java (Added Default Sound Logic)
         cat << 'EOF' > app/src/main/java/com/temp/alert/TempMonitorService.java
         package com.temp.alert;
 
@@ -207,6 +257,9 @@ jobs:
         import android.content.Context;
         import android.content.Intent;
         import android.content.IntentFilter;
+        import android.media.AudioAttributes;
+        import android.media.RingtoneManager;
+        import android.net.Uri;
         import android.os.BatteryManager;
         import android.os.Build;
         import android.os.IBinder;
@@ -247,7 +300,8 @@ jobs:
                         .setSmallIcon(android.R.drawable.stat_sys_warning)
                         .setContentTitle("🔥 High Temperature Alert!")
                         .setContentText("Phone Temperature is " + currentTemp + "°C. Please let it cool down!")
-                        .setPriority(NotificationCompat.PRIORITY_HIGH);
+                        .setPriority(NotificationCompat.PRIORITY_HIGH)
+                        .setAutoCancel(true);
 
                 if (manager != null) {
                     manager.notify(101, builder.build());
@@ -261,6 +315,14 @@ jobs:
                             "Temperature Alerts",
                             NotificationManager.IMPORTANCE_HIGH
                     );
+                    
+                    // YAHAN FIX HAI: Default Notification Sound set kiya gaya hai
+                    Uri defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+                    AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                            .build();
+                    channel.setSound(defaultSoundUri, audioAttributes);
+
                     NotificationManager manager = getSystemService(NotificationManager.class);
                     if (manager != null) {
                         manager.createNotificationChannel(channel);
@@ -282,7 +344,6 @@ jobs:
 
     - name: Build Debug APK with Gradle
       run: |
-        # --stacktrace add kiya hai taaki agar koi aur error aaye toh pata chale
         gradle assembleDebug --stacktrace
 
     - name: Upload APK to Artifacts
