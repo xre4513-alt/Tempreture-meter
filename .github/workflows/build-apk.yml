@@ -252,8 +252,9 @@ jobs:
 
     - name: Build Debug APK with Gradle
       run: |
-        gradle init --type basic --script-plugin-option groovy
-        gradle assembleDebug
+        # Generate a compatible Gradle wrapper instead of using the system Gradle
+        gradle wrapper --gradle-version 7.5
+        ./gradlew assembleDebug
 
     - name: Upload APK to Artifacts
       uses: actions/upload-artifact@v4
