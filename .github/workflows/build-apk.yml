@@ -19,7 +19,6 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # NEW STEP: This is the key fix. It installs Gradle 7.5 and puts it on the PATH.
     - name: Setup Gradle 7.5
       uses: gradle/actions/setup-gradle@v6
       with:
@@ -71,11 +70,10 @@ jobs:
         }
         EOF
 
-        # AndroidManifest.xml
+        # AndroidManifest.xml (YAHAN FIX HAI: package attribute hata diya gaya hai)
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
-        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-            package="com.temp.alert">
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
             <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
             <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -258,12 +256,10 @@ jobs:
 
     - name: Build Debug APK with Gradle
       run: |
-        # We use the system 'gradle' command now because the setup-gradle action
-        # has already set the PATH to use the downloaded Gradle 7.5.
         gradle assembleDebug
 
     - name: Upload APK to Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: TempAlertApp-APK
-        path: app/build/outputs/apk/debug/app-debug.apkl
+        path: app/build/outputs/apk/debug/app-debug.apk
