@@ -26,23 +26,19 @@ jobs:
 
     - name: Create Project Files
       run: |
-        # Create necessary directories
         mkdir -p app/src/main/java/com/temp/alert
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
         mkdir -p app/src/main/res/drawable
 
-        # settings.gradle
         echo "include ':app'" > settings.gradle
 
-        # gradle.properties (Memory & AndroidX fix)
         cat << 'EOF' > gradle.properties
         android.useAndroidX=true
         android.enableJetifier=true
         org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
         EOF
 
-        # Root build.gradle
         cat << 'EOF' > build.gradle
         buildscript {
             repositories { google(); mavenCentral() }
@@ -53,7 +49,6 @@ jobs:
         }
         EOF
 
-        # app/build.gradle
         cat << 'EOF' > app/build.gradle
         apply plugin: 'com.android.application'
 
@@ -79,13 +74,14 @@ jobs:
         }
         EOF
 
-        # AndroidManifest.xml
+        # Manifest (Added Battery Optimization & Foreground permissions)
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
             <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
             <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+            <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
             <application
                 android:allowBackup="true"
@@ -107,7 +103,6 @@ jobs:
         </manifest>
         EOF
 
-        # colors.xml (New file for stylish colors)
         cat << 'EOF' > app/src/main/res/values/colors.xml
         <?xml version="1.0" encoding="utf-8"?>
         <resources>
@@ -119,21 +114,18 @@ jobs:
         </resources>
         EOF
 
-        # styles.xml (NoActionBar for full screen gradient look)
         cat << 'EOF' > app/src/main/res/values/styles.xml
         <resources>
             <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar" />
         </resources>
         EOF
 
-        # strings.xml
         cat << 'EOF' > app/src/main/res/values/strings.xml
         <resources>
             <string name="app_name">Temp Alert</string>
         </resources>
         EOF
 
-        # drawable/bg_gradient.xml (Stylish background)
         cat << 'EOF' > app/src/main/res/drawable/bg_gradient.xml
         <?xml version="1.0" encoding="utf-8"?>
         <shape xmlns:android="http://schemas.android.com/apk/res/android">
@@ -144,7 +136,6 @@ jobs:
         </shape>
         EOF
 
-        # drawable/btn_bg.xml (Rounded button background)
         cat << 'EOF' > app/src/main/res/drawable/btn_bg.xml
         <?xml version="1.0" encoding="utf-8"?>
         <shape xmlns:android="http://schemas.android.com/apk/res/android"
@@ -154,7 +145,6 @@ jobs:
         </shape>
         EOF
 
-        # Layout XML (Updated with styles)
         cat << 'EOF' > app/src/main/res/layout/activity_main.xml
         <?xml version="1.0" encoding="utf-8"?>
         <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -196,23 +186,33 @@ jobs:
         </LinearLayout>
         EOF
 
-        # MainActivity.java (API 33 Receiver safe)
+        # MainActivity (Added permission prompts for Notifications & Battery Optimization)
         cat << 'EOF' > app/src/main/java/com/temp/alert/MainActivity.java
         package com.temp.alert;
 
+        import android.Manifest;
+        import android.annotation.SuppressLint;
         import android.content.BroadcastReceiver;
         import android.content.Context;
         import android.content.Intent;
         import android.content.IntentFilter;
+        import android.content.pm.PackageManager;
+        import android.net.Uri;
         import android.os.BatteryManager;
         import android.os.Build;
         import android.os.Bundle;
+        import android.os.PowerManager;
+        import android.provider.Settings;
         import android.widget.Button;
         import android.widget.TextView;
+        import androidx.annotation.NonNull;
         import androidx.appcompat.app.AppCompatActivity;
+        import androidx.core.app.ActivityCompat;
+        import androidx.core.content.ContextCompat;
 
         public class MainActivity extends AppCompatActivity {
             private TextView txtTemp;
+            private static final int NOTIFICATION_PERMISSION_CODE = 101;
 
             @Override
             protected void onCreate(Bundle savedInstanceState) {
@@ -222,9 +222,23 @@ jobs:
                 txtTemp = findViewById(R.id.txtTemp);
                 Button btnStart = findViewById(R.id.btnStart);
 
+                // Request Notification Permission for Android 13+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_CODE);
+                    }
+                }
+
                 btnStart.setOnClickListener(v -> {
+                    // Request to ignore battery optimization so the service doesn't get killed
+                    requestIgnoreBatteryOptimizations();
+                    
                     Intent serviceIntent = new Intent(this, TempMonitorService.class);
-                    startService(serviceIntent);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(serviceIntent);
+                    } else {
+                        startService(serviceIntent);
+                    }
                 });
 
                 IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
@@ -232,6 +246,30 @@ jobs:
                     registerReceiver(batteryReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
                 } else {
                     registerReceiver(batteryReceiver, filter);
+                }
+            }
+
+            @SuppressLint("BatteryLife")
+            private void requestIgnoreBatteryOptimizations() {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    Intent intent = new Intent();
+                    String packageName = getPackageName();
+                    PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                    if (pm != null && !pm.isIgnoringBatteryOptimizations(packageName)) {
+                        intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                        intent.setData(Uri.parse("package:" + packageName));
+                        startActivity(intent);
+                    }
+                }
+            }
+
+            @Override
+            public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+                super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                if (requestCode == NOTIFICATION_PERMISSION_CODE) {
+                    if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                        // Permission granted
+                    }
                 }
             }
 
@@ -246,10 +284,11 @@ jobs:
         }
         EOF
 
-        # TempMonitorService.java (Added Default Sound Logic)
+        # TempMonitorService.java (Converted to Foreground Service)
         cat << 'EOF' > app/src/main/java/com/temp/alert/TempMonitorService.java
         package com.temp.alert;
 
+        import android.app.Notification;
         import android.app.NotificationChannel;
         import android.app.NotificationManager;
         import android.app.Service;
@@ -266,20 +305,34 @@ jobs:
         import androidx.core.app.NotificationCompat;
 
         public class TempMonitorService extends Service {
-            private static final String CHANNEL_ID = "temp_alert_channel";
+            private static final String SERVICE_CHANNEL_ID = "temp_service_channel";
+            private static final String ALERT_CHANNEL_ID = "temp_alert_channel";
             private static final float TEMP_THRESHOLD = 40.0f;
 
             @Override
             public void onCreate() {
                 super.onCreate();
-                createNotificationChannel();
+                createNotificationChannels();
                 
+                // Start as Foreground Service
+                startForeground(1, buildForegroundNotification());
+
                 IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     registerReceiver(batteryReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
                 } else {
                     registerReceiver(batteryReceiver, filter);
                 }
+            }
+
+            private Notification buildForegroundNotification() {
+                NotificationCompat.Builder builder = new NotificationCompat.Builder(this, SERVICE_CHANNEL_ID)
+                        .setContentTitle("Temp Alert is Active")
+                        .setContentText("Monitoring device temperature in background...")
+                        .setSmallIcon(android.R.drawable.ic_menu_compass)
+                        .setPriority(NotificationCompat.PRIORITY_LOW)
+                        .setOngoing(true);
+                return builder.build();
             }
 
             private final BroadcastReceiver batteryReceiver = new BroadcastReceiver() {
@@ -296,7 +349,7 @@ jobs:
 
             private void sendHighTempAlert(float currentTemp) {
                 NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-                NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                NotificationCompat.Builder builder = new NotificationCompat.Builder(this, ALERT_CHANNEL_ID)
                         .setSmallIcon(android.R.drawable.stat_sys_warning)
                         .setContentTitle("🔥 High Temperature Alert!")
                         .setContentText("Phone Temperature is " + currentTemp + "°C. Please let it cool down!")
@@ -308,25 +361,32 @@ jobs:
                 }
             }
 
-            private void createNotificationChannel() {
+            private void createNotificationChannels() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    NotificationChannel channel = new NotificationChannel(
-                            CHANNEL_ID,
+                    NotificationManager manager = getSystemService(NotificationManager.class);
+                    if (manager == null) return;
+
+                    // 1. Silent Channel for Foreground Service Status
+                    NotificationChannel serviceChannel = new NotificationChannel(
+                            SERVICE_CHANNEL_ID,
+                            "Service Status",
+                            NotificationManager.IMPORTANCE_LOW
+                    );
+                    serviceChannel.setSound(null, null);
+                    manager.createNotificationChannel(serviceChannel);
+
+                    // 2. Loud Channel for High Temp Alert (Uses Default Sound)
+                    NotificationChannel alertChannel = new NotificationChannel(
+                            ALERT_CHANNEL_ID,
                             "Temperature Alerts",
                             NotificationManager.IMPORTANCE_HIGH
                     );
-                    
-                    // YAHAN FIX HAI: Default Notification Sound set kiya gaya hai
                     Uri defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
                     AudioAttributes audioAttributes = new AudioAttributes.Builder()
                             .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                             .build();
-                    channel.setSound(defaultSoundUri, audioAttributes);
-
-                    NotificationManager manager = getSystemService(NotificationManager.class);
-                    if (manager != null) {
-                        manager.createNotificationChannel(channel);
-                    }
+                    alertChannel.setSound(defaultSoundUri, audioAttributes);
+                    manager.createNotificationChannel(alertChannel);
                 }
             }
 
