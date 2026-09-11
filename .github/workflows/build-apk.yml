@@ -19,61 +19,39 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Create Android Project Structure
+    - name: Create Project Files
       run: |
         mkdir -p app/src/main/java/com/temp/alert
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
 
         # settings.gradle
-        cat << 'EOF' > settings.gradle
-        pluginManagement {
-            repositories {
-                google()
-                mavenCentral()
-                gradlePluginPortal()
-            }
-        }
-        dependencyResolutionManagement {
-            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-            repositories {
-                google()
-                mavenCentral()
-            }
-        }
-        rootProject.name = "Temp Alert"
-        include ':app'
-        EOF
+        echo "include ':app'" > settings.gradle
 
         # Root build.gradle
         cat << 'EOF' > build.gradle
-        plugins {
-            id 'com.android.application' version '8.1.1' apply false
+        buildscript {
+            repositories { google(); mavenCentral() }
+            dependencies { classpath 'com.android.tools.build:gradle:7.4.2' }
+        }
+        allprojects {
+            repositories { google(); mavenCentral() }
         }
         EOF
 
         # app/build.gradle
         cat << 'EOF' > app/build.gradle
-        plugins {
-            id 'com.android.application'
-        }
+        apply plugin: 'com.android.application'
 
         android {
+            compileSdkVersion 33
             namespace 'com.temp.alert'
-            compileSdk 34
-
             defaultConfig {
                 applicationId "com.temp.alert"
-                minSdk 21
-                targetSdk 34
+                minSdkVersion 21
+                targetSdkVersion 33
                 versionCode 1
                 versionName "1.0"
-            }
-
-            buildTypes {
-                release {
-                    minifyEnabled false
-                }
             }
             compileOptions {
                 sourceCompatibility JavaVersion.VERSION_17
@@ -83,21 +61,21 @@ jobs:
 
         dependencies {
             implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'com.google.android.material:material:1.9.0'
+            implementation 'com.google.android.material:material:1.8.0'
         }
         EOF
 
         # AndroidManifest.xml
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
-        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            package="com.temp.alert">
 
             <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
             <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
             <application
                 android:allowBackup="true"
-                android:icon="@mipmap/ic_launcher"
                 android:label="Temp Alert"
                 android:supportsRtl="true"
                 android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
@@ -272,13 +250,10 @@ jobs:
         }
         EOF
 
-    - name: Setup Gradle Wrapper and Build APK
+    - name: Build Debug APK with Gradle
       run: |
-        curl -sL https://services.gradle.org/distributions/gradle-8.1.1-bin.zip -o gradle.zip
-        unzip -q gradle.zip
-        ./gradle-8.1.1/bin/gradle wrapper --gradle-version 8.1.1
-        chmod +x gradlew
-        ./gradlew assembleDebug --stacktrace
+        gradle init --type basic --script-plugin-option groovy
+        gradle assembleDebug
 
     - name: Upload APK to Artifacts
       uses: actions/upload-artifact@v4
