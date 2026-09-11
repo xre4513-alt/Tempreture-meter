@@ -19,6 +19,12 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
+    # NEW STEP: This is the key fix. It installs Gradle 7.5 and puts it on the PATH.
+    - name: Setup Gradle 7.5
+      uses: gradle/actions/setup-gradle@v6
+      with:
+        gradle-version: '7.5'
+
     - name: Create Project Files
       run: |
         mkdir -p app/src/main/java/com/temp/alert
@@ -252,12 +258,12 @@ jobs:
 
     - name: Build Debug APK with Gradle
       run: |
-        # Generate a compatible Gradle wrapper instead of using the system Gradle
-        gradle wrapper --gradle-version 7.5
-        ./gradlew assembleDebug
+        # We use the system 'gradle' command now because the setup-gradle action
+        # has already set the PATH to use the downloaded Gradle 7.5.
+        gradle assembleDebug
 
     - name: Upload APK to Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: TempAlertApp-APK
-        path: app/build/outputs/apk/debug/app-debug.apk
+        path: app/build/outputs/apk/debug/app-debug.apkl
