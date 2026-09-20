@@ -74,7 +74,6 @@ jobs:
         }
         EOF
 
-        # Manifest (Added Battery Optimization & Foreground permissions)
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -111,6 +110,9 @@ jobs:
             <color name="accent">#FF5722</color>
             <color name="white">#FFFFFF</color>
             <color name="light_grey">#CCCCCC</color>
+            <color name="temp_cold">#2196F3</color>
+            <color name="temp_warm">#FF9800</color>
+            <color name="temp_hot">#F44336</color>
         </resources>
         EOF
 
@@ -129,22 +131,19 @@ jobs:
         cat << 'EOF' > app/src/main/res/drawable/bg_gradient.xml
         <?xml version="1.0" encoding="utf-8"?>
         <shape xmlns:android="http://schemas.android.com/apk/res/android">
-            <gradient
-                android:startColor="@color/bg_start"
-                android:endColor="@color/bg_end"
-                android:angle="135"/>
+            <gradient android:startColor="@color/bg_start" android:endColor="@color/bg_end" android:angle="135"/>
         </shape>
         EOF
 
         cat << 'EOF' > app/src/main/res/drawable/btn_bg.xml
         <?xml version="1.0" encoding="utf-8"?>
-        <shape xmlns:android="http://schemas.android.com/apk/res/android"
-            android:shape="rectangle">
+        <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
             <solid android:color="@color/accent"/>
             <corners android:radius="30dp"/>
         </shape>
         EOF
 
+        # Layout: Added SeekBar, ProgressBar, Threshold Text
         cat << 'EOF' > app/src/main/res/layout/activity_main.xml
         <?xml version="1.0" encoding="utf-8"?>
         <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -160,33 +159,62 @@ jobs:
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Checking Temp..."
-                android:textSize="32sp"
+                android:textSize="36sp"
                 android:textStyle="bold"
                 android:textColor="@color/white" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Monitors temperature in background"
+                android:text="Alert Threshold (30°C - 50°C)"
                 android:textSize="14sp"
                 android:textColor="@color/light_grey"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="50dp"/>
+                android:layout_marginTop="30dp"/>
 
-            <Button
-                android:id="@+id/btnStart"
-                android:layout_width="220dp"
-                android:layout_height="60dp"
-                android:text="Start Service"
-                android:textColor="@color/white"
+            <SeekBar
+                android:id="@+id/seekBarThreshold"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:max="20"
+                android:progress="10" />
+
+            <TextView
+                android:id="@+id/txtThresholdValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="40 °C"
                 android:textSize="18sp"
-                android:background="@drawable/btn_bg"
-                android:elevation="8dp"
-                android:stateListAnimator="@null" />
+                android:textStyle="bold"
+                android:textColor="@color/accent"
+                android:layout_marginBottom="30dp"/>
+
+            <FrameLayout
+                android:layout_width="220dp"
+                android:layout_height="60dp">
+
+                <Button
+                    android:id="@+id/btnToggleService"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:text="Start Service"
+                    android:textColor="@color/white"
+                    android:textSize="18sp"
+                    android:background="@drawable/btn_bg"
+                    android:elevation="8dp"
+                    android:stateListAnimator="@null" />
+
+                <ProgressBar
+                    android:id="@+id/progressBar"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_gravity="center"
+                    android:visibility="gone"
+                    android:indeterminateTint="@color/white" />
+            </FrameLayout>
         </LinearLayout>
         EOF
 
-        # MainActivity (Added permission prompts for Notifications & Battery Optimization)
         cat << 'EOF' > app/src/main/java/com/temp/alert/MainActivity.java
         package com.temp.alert;
 
@@ -196,14 +224,18 @@ jobs:
         import android.content.Context;
         import android.content.Intent;
         import android.content.IntentFilter;
+        import android.content.SharedPreferences;
         import android.content.pm.PackageManager;
         import android.net.Uri;
         import android.os.BatteryManager;
         import android.os.Build;
         import android.os.Bundle;
+        import android.os.Handler;
         import android.os.PowerManager;
         import android.provider.Settings;
         import android.widget.Button;
+        import android.widget.ProgressBar;
+        import android.widget.SeekBar;
         import android.widget.TextView;
         import androidx.annotation.NonNull;
         import androidx.appcompat.app.AppCompatActivity;
@@ -211,7 +243,11 @@ jobs:
         import androidx.core.content.ContextCompat;
 
         public class MainActivity extends AppCompatActivity {
-            private TextView txtTemp;
+            private TextView txtTemp, txtThresholdValue;
+            private SeekBar seekBarThreshold;
+            private Button btnToggleService;
+            private ProgressBar progressBar;
+            private SharedPreferences prefs;
             private static final int NOTIFICATION_PERMISSION_CODE = 101;
 
             @Override
@@ -220,34 +256,82 @@ jobs:
                 setContentView(R.layout.activity_main);
 
                 txtTemp = findViewById(R.id.txtTemp);
-                Button btnStart = findViewById(R.id.btnStart);
+                txtThresholdValue = findViewById(R.id.txtThresholdValue);
+                seekBarThreshold = findViewById(R.id.seekBarThreshold);
+                btnToggleService = findViewById(R.id.btnToggleService);
+                progressBar = findViewById(R.id.progressBar);
+                prefs = getSharedPreferences("TempAlertPrefs", MODE_PRIVATE);
 
-                // Request Notification Permission for Android 13+
+                // Load saved threshold
+                int savedThreshold = prefs.getInt("threshold", 40);
+                seekBarThreshold.setProgress(savedThreshold - 30);
+                txtThresholdValue.setText(savedThreshold + " °C");
+
+                // SeekBar Listener
+                seekBarThreshold.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                    @Override
+                    public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                        int val = progress + 30;
+                        txtThresholdValue.setText(val + " °C");
+                    }
+                    @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+                    @Override
+                    public void onStopTrackingTouch(SeekBar seekBar) {
+                        prefs.edit().putInt("threshold", seekBar.getProgress() + 30).apply();
+                    }
+                });
+
+                // Permission for Android 13+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                         ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_CODE);
                     }
                 }
 
-                btnStart.setOnClickListener(v -> {
-                    // Request to ignore battery optimization so the service doesn't get killed
-                    requestIgnoreBatteryOptimizations();
-                    
-                    Intent serviceIntent = new Intent(this, TempMonitorService.class);
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        startForegroundService(serviceIntent);
+                // Button Click Logic
+                btnToggleService.setOnClickListener(v -> {
+                    if (TempMonitorService.isRunning) {
+                        // Stop Service
+                        stopService(new Intent(MainActivity.this, TempMonitorService.class));
+                        TempMonitorService.isRunning = false;
+                        btnToggleService.setText("Start Service");
+                        txtTemp.setText("Checking Temp...");
                     } else {
-                        startService(serviceIntent);
+                        // Show Loader Animation
+                        progressBar.setVisibility(android.view.View.VISIBLE);
+                        btnToggleService.setText("");
+                        
+                        new Handler().postDelayed(() -> {
+                            requestIgnoreBatteryOptimizations();
+                            Intent serviceIntent = new Intent(MainActivity.this, TempMonitorService.class);
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                startForegroundService(serviceIntent);
+                            } else {
+                                startService(serviceIntent);
+                            }
+                            TempMonitorService.isRunning = true;
+                            btnToggleService.setText("Stop Service");
+                            progressBar.setVisibility(android.view.View.GONE);
+                        }, 1500); // 1.5 second animation delay
                     }
                 });
 
-                IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+                // Register receiver for live updates
+                IntentFilter filter = new IntentFilter("TEMP_UPDATE");
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    registerReceiver(batteryReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+                    registerReceiver(uiReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
                 } else {
-                    registerReceiver(batteryReceiver, filter);
+                    registerReceiver(uiReceiver, filter);
                 }
             }
+
+            private final BroadcastReceiver uiReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    float cel = intent.getFloatExtra("temp", 0);
+                    txtTemp.setText("Temp: " + cel + " °C");
+                }
+            };
 
             @SuppressLint("BatteryLife")
             private void requestIgnoreBatteryOptimizations() {
@@ -264,38 +348,32 @@ jobs:
             }
 
             @Override
-            public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-                super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-                if (requestCode == NOTIFICATION_PERMISSION_CODE) {
-                    if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                        // Permission granted
-                    }
+            protected void onResume() {
+                super.onResume();
+                // Update button text based on service state
+                if (TempMonitorService.isRunning) {
+                    btnToggleService.setText("Stop Service");
+                } else {
+                    btnToggleService.setText("Start Service");
                 }
             }
-
-            private final BroadcastReceiver batteryReceiver = new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context context, Intent intent) {
-                    int temp = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0);
-                    float cel = temp / 10.0f;
-                    txtTemp.setText("Temp: " + cel + " °C");
-                }
-            };
         }
         EOF
 
-        # TempMonitorService.java (Converted to Foreground Service)
         cat << 'EOF' > app/src/main/java/com/temp/alert/TempMonitorService.java
         package com.temp.alert;
 
         import android.app.Notification;
         import android.app.NotificationChannel;
         import android.app.NotificationManager;
+        import android.app.PendingIntent;
         import android.app.Service;
         import android.content.BroadcastReceiver;
         import android.content.Context;
         import android.content.Intent;
         import android.content.IntentFilter;
+        import android.content.SharedPreferences;
+        import android.graphics.Color;
         import android.media.AudioAttributes;
         import android.media.RingtoneManager;
         import android.net.Uri;
@@ -305,17 +383,19 @@ jobs:
         import androidx.core.app.NotificationCompat;
 
         public class TempMonitorService extends Service {
+            public static boolean isRunning = false;
             private static final String SERVICE_CHANNEL_ID = "temp_service_channel";
             private static final String ALERT_CHANNEL_ID = "temp_alert_channel";
-            private static final float TEMP_THRESHOLD = 40.0f;
+            private float tempThreshold = 40.0f;
 
             @Override
             public void onCreate() {
                 super.onCreate();
+                isRunning = true;
                 createNotificationChannels();
                 
                 // Start as Foreground Service
-                startForeground(1, buildForegroundNotification());
+                startForeground(1, buildForegroundNotification(0, Color.BLUE));
 
                 IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -325,13 +405,26 @@ jobs:
                 }
             }
 
-            private Notification buildForegroundNotification() {
+            private Notification buildForegroundNotification(float temp, int color) {
+                // Intent to open app when clicked
+                Intent notificationIntent = new Intent(this, MainActivity.class);
+                PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
+
+                // Stop Action Intent
+                Intent stopIntent = new Intent(this, TempMonitorService.class);
+                stopIntent.setAction("ACTION_STOP_SERVICE");
+                PendingIntent stopPendingIntent = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
                 NotificationCompat.Builder builder = new NotificationCompat.Builder(this, SERVICE_CHANNEL_ID)
-                        .setContentTitle("Temp Alert is Active")
-                        .setContentText("Monitoring device temperature in background...")
+                        .setContentTitle("Temp Alert: " + temp + "°C")
+                        .setContentText("Monitoring in background. Tap to open.")
                         .setSmallIcon(android.R.drawable.ic_menu_compass)
+                        .setContentIntent(pendingIntent)
+                        .setColor(color)
+                        .setColorized(true)
                         .setPriority(NotificationCompat.PRIORITY_LOW)
-                        .setOngoing(true);
+                        .setOngoing(true)
+                        .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent);
                 return builder.build();
             }
 
@@ -341,7 +434,28 @@ jobs:
                     int temp = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0);
                     float cel = temp / 10.0f;
 
-                    if (cel >= TEMP_THRESHOLD) {
+                    // Get live threshold from SharedPreferences
+                    SharedPreferences prefs = getSharedPreferences("TempAlertPrefs", MODE_PRIVATE);
+                    tempThreshold = prefs.getInt("threshold", 40);
+
+                    // Determine Color based on temperature
+                    int color = Color.BLUE; // Cold
+                    if (cel > 35 && cel <= tempThreshold) color = Color.parseColor("#FF9800"); // Warm
+                    else if (cel > tempThreshold) color = Color.RED; // Hot
+
+                    // Update Foreground Notification Live
+                    NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                    if (manager != null) {
+                        manager.notify(1, buildForegroundNotification(cel, color));
+                    }
+
+                    // Send live temp to MainActivity
+                    Intent uiIntent = new Intent("TEMP_UPDATE");
+                    uiIntent.putExtra("temp", cel);
+                    sendBroadcast(uiIntent);
+
+                    // Check if threshold crossed
+                    if (cel >= tempThreshold) {
                         sendHighTempAlert(cel);
                     }
                 }
@@ -354,6 +468,7 @@ jobs:
                         .setContentTitle("🔥 High Temperature Alert!")
                         .setContentText("Phone Temperature is " + currentTemp + "°C. Please let it cool down!")
                         .setPriority(NotificationCompat.PRIORITY_HIGH)
+                        .setCategory(NotificationCompat.CATEGORY_ALARM) // Makes it pop-up (Heads-up)
                         .setAutoCancel(true);
 
                 if (manager != null) {
@@ -366,33 +481,40 @@ jobs:
                     NotificationManager manager = getSystemService(NotificationManager.class);
                     if (manager == null) return;
 
-                    // 1. Silent Channel for Foreground Service Status
+                    // Silent Channel for Foreground Service Status
                     NotificationChannel serviceChannel = new NotificationChannel(
-                            SERVICE_CHANNEL_ID,
-                            "Service Status",
-                            NotificationManager.IMPORTANCE_LOW
-                    );
+                            SERVICE_CHANNEL_ID, "Service Status", NotificationManager.IMPORTANCE_LOW);
                     serviceChannel.setSound(null, null);
                     manager.createNotificationChannel(serviceChannel);
 
-                    // 2. Loud Channel for High Temp Alert (Uses Default Sound)
+                    // Loud Channel for High Temp Alert (Default Sound)
                     NotificationChannel alertChannel = new NotificationChannel(
-                            ALERT_CHANNEL_ID,
-                            "Temperature Alerts",
-                            NotificationManager.IMPORTANCE_HIGH
-                    );
+                            ALERT_CHANNEL_ID, "Temperature Alerts", NotificationManager.IMPORTANCE_HIGH);
                     Uri defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
                     AudioAttributes audioAttributes = new AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                            .build();
+                            .setUsage(AudioAttributes.USAGE_NOTIFICATION).build();
                     alertChannel.setSound(defaultSoundUri, audioAttributes);
+                    alertChannel.enableVibration(true);
                     manager.createNotificationChannel(alertChannel);
                 }
             }
 
             @Override
             public int onStartCommand(Intent intent, int flags, int startId) {
+                if (intent != null && "ACTION_STOP_SERVICE".equals(intent.getAction())) {
+                    stopSelf();
+                    isRunning = false;
+                    return START_NOT_STICKY;
+                }
                 return START_STICKY;
+            }
+
+            @Override
+            public void onDestroy() {
+                super.onDestroy();
+                isRunning = false;
+                unregisterReceiver(batteryReceiver);
+                stopForeground(true);
             }
 
             @Override
