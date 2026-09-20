@@ -49,7 +49,6 @@ jobs:
         }
         EOF
 
-        # app/build.gradle (Added ConstraintLayout)
         cat << 'EOF' > app/build.gradle
         apply plugin: 'com.android.application'
 
@@ -137,7 +136,7 @@ jobs:
         </shape>
         EOF
 
-        # Layout (ConstraintLayout for perfect positioning)
+        # Layout XML (YAHAN FIX HAI: Text white, Slider light grey)
         cat << 'EOF' > app/src/main/res/layout/activity_main.xml
         <?xml version="1.0" encoding="utf-8"?>
         <androidx.constraintlayout.widget.ConstraintLayout 
@@ -193,6 +192,9 @@ jobs:
                 android:layout_height="wrap_content"
                 android:max="20"
                 android:progress="10"
+                android:progressTint="@color/light_grey"
+                android:thumbTint="@color/light_grey"
+                android:progressBackgroundTint="#555555"
                 app:layout_constraintTop_toBottomOf="@id/txtThresholdLabel"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
@@ -205,7 +207,7 @@ jobs:
                 android:text="40 °C"
                 android:textSize="20sp"
                 android:textStyle="bold"
-                android:textColor="@color/accent"
+                android:textColor="@color/white"
                 app:layout_constraintTop_toBottomOf="@id/seekBarThreshold"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
@@ -323,7 +325,6 @@ jobs:
                         TempMonitorService.isRunning = false;
                         btnToggleService.setText("Start Service");
                     } else {
-                        // Wave Loader Animation
                         waveLoader.setVisibility(View.VISIBLE);
                         btnToggleService.setText("Starting...");
                         
@@ -342,7 +343,6 @@ jobs:
                     }
                 });
 
-                // THIS FIXES APP OPEN TEMPERATURE: Local Receiver
                 IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
                 registerReceiver(localBatteryReceiver, filter);
             }
@@ -360,11 +360,11 @@ jobs:
             private void updateBackgroundColor(float temp) {
                 View root = findViewById(R.id.rootLayout);
                 if (temp < 35) {
-                    root.setBackgroundColor(Color.parseColor("#1F1C2C")); // Cold
+                    root.setBackgroundColor(Color.parseColor("#1F1C2C"));
                 } else if (temp <= 40) {
-                    root.setBackgroundColor(Color.parseColor("#FF9800")); // Warm
+                    root.setBackgroundColor(Color.parseColor("#FF9800"));
                 } else {
-                    root.setBackgroundColor(Color.parseColor("#F44336")); // Hot
+                    root.setBackgroundColor(Color.parseColor("#F44336"));
                 }
             }
 
