@@ -49,6 +49,7 @@ jobs:
         }
         EOF
 
+        # app/build.gradle (Added ConstraintLayout)
         cat << 'EOF' > app/build.gradle
         apply plugin: 'com.android.application'
 
@@ -71,6 +72,7 @@ jobs:
         dependencies {
             implementation 'androidx.appcompat:appcompat:1.6.1'
             implementation 'com.google.android.material:material:1.8.0'
+            implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
         }
         EOF
 
@@ -105,8 +107,7 @@ jobs:
         cat << 'EOF' > app/src/main/res/values/colors.xml
         <?xml version="1.0" encoding="utf-8"?>
         <resources>
-            <color name="bg_start">#1F1C2C</color>
-            <color name="bg_end">#928DAB</color>
+            <color name="bg_default">#1F1C2C</color>
             <color name="accent">#FF5722</color>
             <color name="white">#FFFFFF</color>
             <color name="light_grey">#CCCCCC</color>
@@ -128,13 +129,6 @@ jobs:
         </resources>
         EOF
 
-        cat << 'EOF' > app/src/main/res/drawable/bg_gradient.xml
-        <?xml version="1.0" encoding="utf-8"?>
-        <shape xmlns:android="http://schemas.android.com/apk/res/android">
-            <gradient android:startColor="@color/bg_start" android:endColor="@color/bg_end" android:angle="135"/>
-        </shape>
-        EOF
-
         cat << 'EOF' > app/src/main/res/drawable/btn_bg.xml
         <?xml version="1.0" encoding="utf-8"?>
         <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
@@ -143,55 +137,88 @@ jobs:
         </shape>
         EOF
 
-        # Layout: Added SeekBar, ProgressBar, Threshold Text
+        # Layout (ConstraintLayout for perfect positioning)
         cat << 'EOF' > app/src/main/res/layout/activity_main.xml
         <?xml version="1.0" encoding="utf-8"?>
-        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        <androidx.constraintlayout.widget.ConstraintLayout 
+            xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:app="http://schemas.android.com/apk/res-auto"
+            android:id="@+id/rootLayout"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:padding="24dp"
-            android:background="@drawable/bg_gradient">
+            android:background="@color/bg_default"
+            android:padding="24dp">
+
+            <TextView
+                android:id="@+id/txtTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Temperature Monitor"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:textColor="@color/white"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                android:layout_marginTop="40dp"/>
 
             <TextView
                 android:id="@+id/txtTemp"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Checking Temp..."
-                android:textSize="36sp"
+                android:text="--.- °C"
+                android:textSize="48sp"
                 android:textStyle="bold"
-                android:textColor="@color/white" />
+                android:textColor="@color/white"
+                app:layout_constraintTop_toBottomOf="@id/txtTitle"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                android:layout_marginTop="20dp"/>
 
             <TextView
+                android:id="@+id/txtThresholdLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Alert Threshold (30°C - 50°C)"
-                android:textSize="14sp"
+                android:text="Alert Threshold"
+                android:textSize="16sp"
                 android:textColor="@color/light_grey"
-                android:layout_marginTop="30dp"/>
+                app:layout_constraintTop_toBottomOf="@id/txtTemp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                android:layout_marginTop="50dp"/>
 
             <SeekBar
                 android:id="@+id/seekBarThreshold"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
                 android:max="20"
-                android:progress="10" />
+                android:progress="10"
+                app:layout_constraintTop_toBottomOf="@id/txtThresholdLabel"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                android:layout_marginTop="10dp"/>
 
             <TextView
                 android:id="@+id/txtThresholdValue"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="40 °C"
-                android:textSize="18sp"
+                android:textSize="20sp"
                 android:textStyle="bold"
                 android:textColor="@color/accent"
-                android:layout_marginBottom="30dp"/>
+                app:layout_constraintTop_toBottomOf="@id/seekBarThreshold"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                android:layout_marginTop="10dp"/>
 
             <FrameLayout
+                android:id="@+id/btnContainer"
                 android:layout_width="220dp"
-                android:layout_height="60dp">
+                android:layout_height="60dp"
+                app:layout_constraintTop_toBottomOf="@id/txtThresholdValue"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                android:layout_marginTop="40dp">
 
                 <Button
                     android:id="@+id/btnToggleService"
@@ -204,15 +231,19 @@ jobs:
                     android:elevation="8dp"
                     android:stateListAnimator="@null" />
 
-                <ProgressBar
-                    android:id="@+id/progressBar"
+                <com.google.android.material.progressindicator.CircularProgressIndicator
+                    android:id="@+id/waveLoader"
                     android:layout_width="40dp"
                     android:layout_height="40dp"
                     android:layout_gravity="center"
                     android:visibility="gone"
-                    android:indeterminateTint="@color/white" />
+                    app:indicatorColor="@color/white"
+                    app:trackColor="@color/accent"
+                    app:indicatorSize="40dp"
+                    app:trackThickness="4dp"
+                    app:indeterminateAnimationType="contiguous" />
             </FrameLayout>
-        </LinearLayout>
+        </androidx.constraintlayout.widget.ConstraintLayout>
         EOF
 
         cat << 'EOF' > app/src/main/java/com/temp/alert/MainActivity.java
@@ -226,6 +257,7 @@ jobs:
         import android.content.IntentFilter;
         import android.content.SharedPreferences;
         import android.content.pm.PackageManager;
+        import android.graphics.Color;
         import android.net.Uri;
         import android.os.BatteryManager;
         import android.os.Build;
@@ -233,8 +265,8 @@ jobs:
         import android.os.Handler;
         import android.os.PowerManager;
         import android.provider.Settings;
+        import android.view.View;
         import android.widget.Button;
-        import android.widget.ProgressBar;
         import android.widget.SeekBar;
         import android.widget.TextView;
         import androidx.annotation.NonNull;
@@ -246,7 +278,7 @@ jobs:
             private TextView txtTemp, txtThresholdValue;
             private SeekBar seekBarThreshold;
             private Button btnToggleService;
-            private ProgressBar progressBar;
+            private com.google.android.material.progressindicator.CircularProgressIndicator waveLoader;
             private SharedPreferences prefs;
             private static final int NOTIFICATION_PERMISSION_CODE = 101;
 
@@ -259,15 +291,13 @@ jobs:
                 txtThresholdValue = findViewById(R.id.txtThresholdValue);
                 seekBarThreshold = findViewById(R.id.seekBarThreshold);
                 btnToggleService = findViewById(R.id.btnToggleService);
-                progressBar = findViewById(R.id.progressBar);
+                waveLoader = findViewById(R.id.waveLoader);
                 prefs = getSharedPreferences("TempAlertPrefs", MODE_PRIVATE);
 
-                // Load saved threshold
                 int savedThreshold = prefs.getInt("threshold", 40);
                 seekBarThreshold.setProgress(savedThreshold - 30);
                 txtThresholdValue.setText(savedThreshold + " °C");
 
-                // SeekBar Listener
                 seekBarThreshold.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                     @Override
                     public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -281,25 +311,21 @@ jobs:
                     }
                 });
 
-                // Permission for Android 13+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                         ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_CODE);
                     }
                 }
 
-                // Button Click Logic
                 btnToggleService.setOnClickListener(v -> {
                     if (TempMonitorService.isRunning) {
-                        // Stop Service
                         stopService(new Intent(MainActivity.this, TempMonitorService.class));
                         TempMonitorService.isRunning = false;
                         btnToggleService.setText("Start Service");
-                        txtTemp.setText("Checking Temp...");
                     } else {
-                        // Show Loader Animation
-                        progressBar.setVisibility(android.view.View.VISIBLE);
-                        btnToggleService.setText("");
+                        // Wave Loader Animation
+                        waveLoader.setVisibility(View.VISIBLE);
+                        btnToggleService.setText("Starting...");
                         
                         new Handler().postDelayed(() -> {
                             requestIgnoreBatteryOptimizations();
@@ -311,27 +337,36 @@ jobs:
                             }
                             TempMonitorService.isRunning = true;
                             btnToggleService.setText("Stop Service");
-                            progressBar.setVisibility(android.view.View.GONE);
-                        }, 1500); // 1.5 second animation delay
+                            waveLoader.setVisibility(View.GONE);
+                        }, 1500);
                     }
                 });
 
-                // Register receiver for live updates
-                IntentFilter filter = new IntentFilter("TEMP_UPDATE");
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    registerReceiver(uiReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-                } else {
-                    registerReceiver(uiReceiver, filter);
-                }
+                // THIS FIXES APP OPEN TEMPERATURE: Local Receiver
+                IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+                registerReceiver(localBatteryReceiver, filter);
             }
 
-            private final BroadcastReceiver uiReceiver = new BroadcastReceiver() {
+            private final BroadcastReceiver localBatteryReceiver = new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context context, Intent intent) {
-                    float cel = intent.getFloatExtra("temp", 0);
-                    txtTemp.setText("Temp: " + cel + " °C");
+                    int temp = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0);
+                    float cel = temp / 10.0f;
+                    txtTemp.setText(String.format("%.1f °C", cel));
+                    updateBackgroundColor(cel);
                 }
             };
+
+            private void updateBackgroundColor(float temp) {
+                View root = findViewById(R.id.rootLayout);
+                if (temp < 35) {
+                    root.setBackgroundColor(Color.parseColor("#1F1C2C")); // Cold
+                } else if (temp <= 40) {
+                    root.setBackgroundColor(Color.parseColor("#FF9800")); // Warm
+                } else {
+                    root.setBackgroundColor(Color.parseColor("#F44336")); // Hot
+                }
+            }
 
             @SuppressLint("BatteryLife")
             private void requestIgnoreBatteryOptimizations() {
@@ -348,9 +383,14 @@ jobs:
             }
 
             @Override
+            protected void onDestroy() {
+                super.onDestroy();
+                unregisterReceiver(localBatteryReceiver);
+            }
+
+            @Override
             protected void onResume() {
                 super.onResume();
-                // Update button text based on service state
                 if (TempMonitorService.isRunning) {
                     btnToggleService.setText("Stop Service");
                 } else {
@@ -393,8 +433,6 @@ jobs:
                 super.onCreate();
                 isRunning = true;
                 createNotificationChannels();
-                
-                // Start as Foreground Service
                 startForeground(1, buildForegroundNotification(0, Color.BLUE));
 
                 IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
@@ -406,11 +444,9 @@ jobs:
             }
 
             private Notification buildForegroundNotification(float temp, int color) {
-                // Intent to open app when clicked
                 Intent notificationIntent = new Intent(this, MainActivity.class);
                 PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
 
-                // Stop Action Intent
                 Intent stopIntent = new Intent(this, TempMonitorService.class);
                 stopIntent.setAction("ACTION_STOP_SERVICE");
                 PendingIntent stopPendingIntent = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
@@ -434,27 +470,18 @@ jobs:
                     int temp = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0);
                     float cel = temp / 10.0f;
 
-                    // Get live threshold from SharedPreferences
                     SharedPreferences prefs = getSharedPreferences("TempAlertPrefs", MODE_PRIVATE);
                     tempThreshold = prefs.getInt("threshold", 40);
 
-                    // Determine Color based on temperature
-                    int color = Color.BLUE; // Cold
-                    if (cel > 35 && cel <= tempThreshold) color = Color.parseColor("#FF9800"); // Warm
-                    else if (cel > tempThreshold) color = Color.RED; // Hot
+                    int color = Color.BLUE;
+                    if (cel > 35 && cel <= tempThreshold) color = Color.parseColor("#FF9800");
+                    else if (cel > tempThreshold) color = Color.RED;
 
-                    // Update Foreground Notification Live
                     NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
                     if (manager != null) {
                         manager.notify(1, buildForegroundNotification(cel, color));
                     }
 
-                    // Send live temp to MainActivity
-                    Intent uiIntent = new Intent("TEMP_UPDATE");
-                    uiIntent.putExtra("temp", cel);
-                    sendBroadcast(uiIntent);
-
-                    // Check if threshold crossed
                     if (cel >= tempThreshold) {
                         sendHighTempAlert(cel);
                     }
@@ -468,7 +495,7 @@ jobs:
                         .setContentTitle("🔥 High Temperature Alert!")
                         .setContentText("Phone Temperature is " + currentTemp + "°C. Please let it cool down!")
                         .setPriority(NotificationCompat.PRIORITY_HIGH)
-                        .setCategory(NotificationCompat.CATEGORY_ALARM) // Makes it pop-up (Heads-up)
+                        .setCategory(NotificationCompat.CATEGORY_ALARM)
                         .setAutoCancel(true);
 
                 if (manager != null) {
@@ -481,13 +508,11 @@ jobs:
                     NotificationManager manager = getSystemService(NotificationManager.class);
                     if (manager == null) return;
 
-                    // Silent Channel for Foreground Service Status
                     NotificationChannel serviceChannel = new NotificationChannel(
                             SERVICE_CHANNEL_ID, "Service Status", NotificationManager.IMPORTANCE_LOW);
                     serviceChannel.setSound(null, null);
                     manager.createNotificationChannel(serviceChannel);
 
-                    // Loud Channel for High Temp Alert (Default Sound)
                     NotificationChannel alertChannel = new NotificationChannel(
                             ALERT_CHANNEL_ID, "Temperature Alerts", NotificationManager.IMPORTANCE_HIGH);
                     Uri defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
