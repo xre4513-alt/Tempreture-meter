@@ -26,10 +26,15 @@ jobs:
 
     - name: Create Project Files
       run: |
+        # Create necessary directories (including mipmap for logo)
         mkdir -p app/src/main/java/com/temp/alert
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
         mkdir -p app/src/main/res/drawable
+        mkdir -p app/src/main/res/mipmap-xxxhdpi
+
+        # Copy your logo from repo root to Android mipmap folder
+        cp logo.png app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
 
         echo "include ':app'" > settings.gradle
 
@@ -75,6 +80,7 @@ jobs:
         }
         EOF
 
+        # Manifest (Added android:icon for your logo)
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -85,6 +91,8 @@ jobs:
 
             <application
                 android:allowBackup="true"
+                android:icon="@mipmap/ic_launcher"
+                android:roundIcon="@mipmap/ic_launcher"
                 android:label="Temp Alert"
                 android:supportsRtl="true"
                 android:theme="@style/AppTheme">
@@ -136,7 +144,6 @@ jobs:
         </shape>
         EOF
 
-        # Layout XML (YAHAN FIX HAI: Text white, Slider light grey)
         cat << 'EOF' > app/src/main/res/layout/activity_main.xml
         <?xml version="1.0" encoding="utf-8"?>
         <androidx.constraintlayout.widget.ConstraintLayout 
